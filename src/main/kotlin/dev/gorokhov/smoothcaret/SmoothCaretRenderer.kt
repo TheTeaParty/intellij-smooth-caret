@@ -17,6 +17,8 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     private var lastEditor: Editor? = null
     private var isCaretVisible = true
     private var blinkTimer: Timer? = null
+    private var lastMoveTime = System.currentTimeMillis()
+    private val resumeBlinkDelay = 1000
 
     override fun paint(editor: Editor, highlighter: RangeHighlighter, g: Graphics) {
         if (!settings.isEnabled) return
@@ -41,9 +43,18 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         g2d.color = editor.colorsScheme.defaultForeground
 
         val lineHeight = editor.lineHeight
+        val isMoving = Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01
+
+        if (isMoving) {
+            lastMoveTime = System.currentTimeMillis()
+            isCaretVisible = true
+        }
+
+        val timeSinceLastMove = System.currentTimeMillis() - lastMoveTime
+        val shouldBlink = timeSinceLastMove > resumeBlinkDelay
 
         // Only draw if we have valid positions
-        if (currentX.isFinite() && currentY.isFinite() && (isCaretVisible || !settings.isBlinking)) {
+        if (currentX.isFinite() && currentY.isFinite() && (!shouldBlink || isCaretVisible || !settings.isBlinking)) {
             when (settings.caretStyle) {
                 SmoothCaretSettings.CaretStyle.BLOCK -> {
                     g2d.fillRect(
