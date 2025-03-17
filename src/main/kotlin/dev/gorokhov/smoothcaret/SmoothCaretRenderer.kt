@@ -45,18 +45,18 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 SmoothCaretSettings.CaretStyle.BLOCK -> {
                     g2d.fillRect(
                         currentX.toInt(),
-                        currentY.toInt(),
+                        currentY.toInt() + settings.caretHeightMargins,
                         settings.caretWidth,
-                        lineHeight
+                        lineHeight - settings.caretHeightMargins * 2
                     )
                 }
 
                 SmoothCaretSettings.CaretStyle.LINE -> {
                     g2d.fillRect(
                         currentX.toInt(),
-                        currentY.toInt(),
+                        currentY.toInt() + settings.caretHeightMargins,
                         settings.caretWidth,
-                        lineHeight
+                        lineHeight - settings.caretHeightMargins * 2
                     )
                 }
 
