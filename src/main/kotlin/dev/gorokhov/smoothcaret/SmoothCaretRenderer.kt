@@ -19,6 +19,8 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     override fun paint(editor: Editor, highlighter: RangeHighlighter, g: Graphics) {
         if (!settings.isEnabled) return
 
+        if (!editor.contentComponent.hasFocus()) return
+
         // Reset position if editor changed
         if (lastEditor != editor) {
             lastEditor = editor
