@@ -53,7 +53,8 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
 
         g2d.color = editor.colorsScheme.defaultForeground
 
-        val lineHeight = editor.lineHeight
+        val caretHeight = editor.lineHeight - (settings.caretHeightMargins * 2)
+
         val isMoving = Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01
 
         if (isMoving) {
@@ -72,7 +73,7 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                         currentX.toInt(),
                         currentY.toInt() + settings.caretHeightMargins,
                         settings.caretWidth,
-                        lineHeight - settings.caretHeightMargins * 2
+                        caretHeight
                     )
                 }
 
@@ -81,14 +82,14 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                         currentX.toInt(),
                         currentY.toInt() + settings.caretHeightMargins,
                         settings.caretWidth,
-                        lineHeight - settings.caretHeightMargins * 2
+                        caretHeight
                     )
                 }
 
                 SmoothCaretSettings.CaretStyle.UNDERSCORE -> {
                     g2d.fillRect(
                         currentX.toInt(),
-                        currentY.toInt() + lineHeight - 2,
+                        currentY.toInt() + caretHeight - 2,
                         settings.caretWidth * 2,
                         2
                     )
