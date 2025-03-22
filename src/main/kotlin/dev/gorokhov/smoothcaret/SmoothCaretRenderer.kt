@@ -156,19 +156,29 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                     val dx = targetX - currentX
                     val dy = targetY - currentY
 
-                    val charWidth = editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
+                    if (settings.adaptiveSpeed) {
+                        val charWidth =
+                            editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
 
-                    val speedFactor = when {
-                        abs(dx) > charWidth * 2 -> 0.8
-                        abs(dx) > charWidth -> 0.5
-                        else -> 0.15
+                        // Adaptive speed based on distance to avoid falling behind
+                        val speedFactor = when {
+                            abs(dx) > charWidth * 2 -> settings.maxCatchupSpeed
+                            abs(dx) > charWidth -> settings.catchupSpeed
+                            else -> settings.smoothness
+                        }
+
+                        if (abs(dx) > 0.01 || abs(dy) > 0.01) {
+                            currentX += dx * speedFactor
+                            currentY += dy * speedFactor
+                            editor.contentComponent.repaint()
+                        }
+                    } else {
+                        // Simple constant speed animation
+                        currentX += dx * settings.smoothness
+                        currentY += dy * settings.smoothness
                     }
 
-                    if (abs(dx) > 0.01 || abs(dy) > 0.01) {
-                        currentX += dx * speedFactor
-                        currentY += dy * speedFactor
-                        editor.contentComponent.repaint()
-                    }
+                    editor.contentComponent.repaint()
                 } else {
                     timer?.stop()
                     timer = null

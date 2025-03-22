@@ -10,7 +10,7 @@ import com.intellij.openapi.editor.markup.RangeHighlighter
 import java.awt.Color
 
 class SmoothCaretEditorFactoryListener : EditorFactoryListener {
-    private val settings = service<SmoothCaretService>().settings
+    private val settings = service<SmoothCaretService>().getSettings()
     private val highlighters = mutableMapOf<Editor, RangeHighlighter>()
 
     override fun editorCreated(event: EditorFactoryEvent) {

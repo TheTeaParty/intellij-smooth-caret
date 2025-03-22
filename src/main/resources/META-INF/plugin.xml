@@ -10,6 +10,12 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+                instance="dev.gorokhov.smoothcaret.SmoothCaretConfigurable"
+                displayName="Smooth Caret"
+                id="dev.gorokhov.smoothcaret.SmoothCaretConfigurable"
+                parentId="editor"/>
+
         <applicationService serviceImplementation="dev.gorokhov.smoothcaret.SmoothCaretService"
                             order="first, before *"/>
         <editorFactoryListener implementation="dev.gorokhov.smoothcaret.SmoothCaretEditorFactoryListener"
