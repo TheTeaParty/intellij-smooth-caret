@@ -151,18 +151,22 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
             val refreshRate = getScreenRefreshRate()
             val delay = 1000 / refreshRate
 
-            // Adjust the animation coefficient according to the refresh rate to make the animation feel consistent on high and low refresh screens
-            val baseSpeed = 0.3 // Base speed coefficient
-            val speedFactor = 60.0 / refreshRate // Adjustment factor relative to 60Hz
-            val adjustedSpeed = baseSpeed * speedFactor.coerceIn(0.5, 1.5) // Limit adjustment range
-
             timer = Timer(delay) {
                 if (!editor.isDisposed) {
                     val dx = targetX - currentX
                     val dy = targetY - currentY
+
+                    val charWidth = editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
+
+                    val speedFactor = when {
+                        abs(dx) > charWidth * 2 -> 0.8
+                        abs(dx) > charWidth -> 0.5
+                        else -> 0.15
+                    }
+
                     if (abs(dx) > 0.01 || abs(dy) > 0.01) {
-                        currentX += dx * adjustedSpeed
-                        currentY += dy * adjustedSpeed
+                        currentX += dx * speedFactor
+                        currentY += dy * speedFactor
                         editor.contentComponent.repaint()
                     }
                 } else {
