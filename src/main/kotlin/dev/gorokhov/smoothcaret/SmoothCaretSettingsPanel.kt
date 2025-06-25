@@ -1,19 +1,43 @@
 package dev.gorokhov.smoothcaret
 
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.*
 import javax.swing.*
 import javax.swing.border.TitledBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
     private val panel = JPanel(GridBagLayout())
     private val components = mutableListOf<JComponent>()
 
-    private val blinkingCheckbox = JCheckBox("Enable blinking").apply {
-        isSelected = settings.isBlinking
-        addActionListener { settings.isBlinking = isSelected }
-        toolTipText = "Toggle caret blinking animation"
+    private val blinkingStyleComboBox = ComboBox(SmoothCaretSettings.BlinkingStyle.entries.toTypedArray()).apply {
+        selectedItem = settings.blinkingStyle
+        addActionListener {
+            settings.blinkingStyle = selectedItem as SmoothCaretSettings.BlinkingStyle
+        }
+        toolTipText = "Select the type of cursor animation"
+
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean
+            ): Component {
+                val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                if (value is SmoothCaretSettings.BlinkingStyle) {
+                    text = when (value) {
+                        SmoothCaretSettings.BlinkingStyle.BLINK -> "Blink"
+                        SmoothCaretSettings.BlinkingStyle.SMOOTH -> "Smooth"
+                        SmoothCaretSettings.BlinkingStyle.PHASE -> "Phase"
+                        SmoothCaretSettings.BlinkingStyle.EXPAND -> "Expand"
+                        SmoothCaretSettings.BlinkingStyle.SOLID -> "Solid"
+                    }
+                }
+                return component
+            }
+        }
     }
 
     private val adaptiveSpeedCheckbox = JCheckBox("Adaptive speed").apply {
@@ -22,8 +46,7 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
         toolTipText = "Automatically adjust animation speed based on typing speed"
     }
 
-    private val sliderComponents = mutableListOf<Pair<JSlider, JLabel>>()
-
+    private val sliderComponents = mutableListOf<Pair<JSlider, JBTextField>>()
 
     init {
         panel.border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
@@ -36,13 +59,22 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
             ), y++
         )
 
-        addComponent(createGroupPanel("Basic Settings") {
-            add(blinkingCheckbox)
-        }, y++)
-
-
-        // Animation settings
         addComponent(createGroupPanel("Animation Settings") {
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                add(JLabel("Animation style: "))
+                add(blinkingStyleComboBox)
+            })
+
+            add(
+                createLabeledSlider(
+                    "Animation speed",
+                    "Controls how fast the cursor animation happens (lower = faster)",
+                    200,
+                    2000,
+                    settings.blinkInterval,
+                    isPercentage = false
+                ) { settings.blinkInterval = it })
+
             add(
                 createLabeledSlider(
                     "Animation smoothness",
@@ -51,8 +83,6 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
                     30,
                     (settings.smoothness * 100).toInt()
                 ) { settings.smoothness = it / 100f })
-
-            add(Box.createVerticalStrut(10))
 
             add(
                 createLabeledSlider(
@@ -63,8 +93,6 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
                     (settings.catchupSpeed * 100).toInt()
                 ) { settings.catchupSpeed = it / 100f })
 
-            add(Box.createVerticalStrut(10))
-
             add(
                 createLabeledSlider(
                     "Max catch-up speed",
@@ -74,8 +102,6 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
                     (settings.maxCatchupSpeed * 100).toInt()
                 ) { settings.maxCatchupSpeed = it / 100f })
 
-            add(Box.createVerticalStrut(10))
-
             add(adaptiveSpeedCheckbox)
         }, y++)
 
@@ -84,7 +110,6 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
         addComponent(JPanel().apply {
             preferredSize = Dimension(1, 20)
         }, y++)
-
     }
 
     private fun createResetPanel(): JPanel {
@@ -98,7 +123,6 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
     }
 
     private fun resetToDefaults() {
-        // Show confirmation dialog
         val result = JOptionPane.showConfirmDialog(
             panel,
             "Are you sure you want to reset all settings to their default values?",
@@ -110,26 +134,30 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
         if (result == JOptionPane.YES_OPTION) {
             settings.resetToDefaults()
 
-            // Update UI components
-            blinkingCheckbox.isSelected = settings.isBlinking
+            blinkingStyleComboBox.selectedItem = settings.blinkingStyle
             adaptiveSpeedCheckbox.isSelected = settings.adaptiveSpeed
 
-            // Update all sliders
-            sliderComponents.forEach { (slider, label) ->
+            sliderComponents.forEach { pair ->
+                val (slider, textField) = pair
                 when (slider.toolTipText) {
-                    "Animation smoothness" -> {
+                    "Controls how smooth the caret movement is (lower = smoother)" -> {
                         slider.value = (settings.smoothness * 100).toInt()
-                        label.text = "${slider.value}%"
+                        textField.text = slider.value.toString()
                     }
 
-                    "Catch-up speed" -> {
+                    "How quickly the caret catches up during normal typing" -> {
                         slider.value = (settings.catchupSpeed * 100).toInt()
-                        label.text = "${slider.value}%"
+                        textField.text = slider.value.toString()
                     }
 
-                    "Max catch-up speed" -> {
+                    "Maximum speed for catching up during fast typing" -> {
                         slider.value = (settings.maxCatchupSpeed * 100).toInt()
-                        label.text = "${slider.value}%"
+                        textField.text = slider.value.toString()
+                    }
+
+                    "Controls how fast the cursor animation happens (lower = faster)" -> {
+                        slider.value = settings.blinkInterval
+                        textField.text = slider.value.toString()
                     }
                 }
             }
@@ -160,26 +188,57 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
     }
 
     private fun createLabeledSlider(
-        label: String, tooltip: String, min: Int, max: Int, initial: Int, onChange: (Int) -> Unit
+        label: String,
+        tooltip: String,
+        min: Int,
+        max: Int,
+        initial: Int,
+        isPercentage: Boolean = true,
+        onChange: (Int) -> Unit
     ): JPanel {
         return JPanel(GridBagLayout()).apply {
-            val valueLabel = JLabel("$initial%")
+            val unitLabel = JLabel(if (isPercentage) "%" else "ms")
+            val textField = JBTextField(initial.toString()).apply {
+                preferredSize = Dimension(60, preferredSize.height)
+                toolTipText = "Enter value directly"
+            }
+
             val slider = JSlider(min, max, initial).apply {
                 toolTipText = tooltip
                 addChangeListener {
-                    onChange(value)
-                    valueLabel.text = "$value%"
+                    if (!textField.hasFocus()) {
+                        onChange(value)
+                        textField.text = value.toString()
+                    }
                 }
             }
 
-            sliderComponents.add(Pair(slider, valueLabel))
+            textField.document.addDocumentListener(object : DocumentListener {
+                override fun insertUpdate(e: DocumentEvent?) = updateFromTextField()
+                override fun removeUpdate(e: DocumentEvent?) = updateFromTextField()
+                override fun changedUpdate(e: DocumentEvent?) = updateFromTextField()
+
+                private fun updateFromTextField() {
+                    try {
+                        val value = textField.text.toInt().coerceIn(min, max)
+
+                        if (value != slider.value) {
+                            slider.value = value
+                            onChange(value)
+                        }
+                    } catch (e: NumberFormatException) {
+                    }
+                }
+            })
+
+            sliderComponents.add(Pair(slider, textField))
 
             add(JLabel(label).apply {
                 toolTipText = tooltip
             }, GridBagConstraints().apply {
                 gridx = 0
                 gridy = 0
-                gridwidth = 2
+                gridwidth = 3
                 weightx = 1.0
                 fill = GridBagConstraints.HORIZONTAL
             })
@@ -191,8 +250,14 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
                 fill = GridBagConstraints.HORIZONTAL
             })
 
-            add(valueLabel, GridBagConstraints().apply {
+            add(textField, GridBagConstraints().apply {
                 gridx = 1
+                gridy = 1
+                insets = JBUI.insetsLeft(5)
+            })
+
+            add(unitLabel, GridBagConstraints().apply {
+                gridx = 2
                 gridy = 1
                 insets = JBUI.insetsLeft(5)
             })
@@ -215,6 +280,5 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
     fun isModified(): Boolean = true
 
     fun apply() {
-        // Changes are applied immediately
     }
 }

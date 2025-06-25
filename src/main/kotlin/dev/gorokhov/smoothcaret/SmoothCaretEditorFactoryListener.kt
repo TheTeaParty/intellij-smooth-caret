@@ -114,29 +114,22 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
     override fun editorReleased(event: EditorFactoryEvent) {
         val editor = event.editor
 
-        // Restore default caret color when editor is released
         event.editor.colorsScheme.setColor(EditorColors.CARET_COLOR, null)
 
-        // Remove document listener
         editor.getUserData(DOCUMENT_LISTENER_KEY)?.let { listener ->
             editor.document.removeDocumentListener(listener)
         }
 
-        // Remove caret listener
         editor.getUserData(CARET_LISTENER_KEY)?.let { listener ->
             editor.caretModel.removeCaretListener(listener)
         }
 
-        // Remove highlighter
         highlighters.remove(editor)?.let { highlighter ->
             editor.markupModel.removeHighlighter(highlighter)
         }
 
-        // Restore default caret color
         editor.colorsScheme.setColor(EditorColors.CARET_COLOR, null)
-
     }
-
 }
 
 private val CARET_LISTENER_KEY = com.intellij.openapi.util.Key<CaretListener>("SMOOTH_CARET_LISTENER")
