@@ -11,10 +11,7 @@ import javax.swing.Timer
 import kotlin.math.abs
 
 class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHighlighterRenderer {
-    private var currentX: Double = 0.0
-    private var currentY: Double = 0.0
-    private var targetX: Double = 0.0
-    private var targetY: Double = 0.0
+    private val caretPositions = mutableMapOf<Int, CaretPosition>()
     private var timer: Timer? = null
     private var lastEditor: Editor? = null
 
@@ -25,6 +22,10 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     private var lastMoveTime = System.currentTimeMillis()
     private val resumeBlinkDelay = 1000
 
+    private data class CaretPosition(
+        var currentX: Double = 0.0, var currentY: Double = 0.0, var targetX: Double = 0.0, var targetY: Double = 0.0
+    )
+
 
     override fun paint(editor: Editor, highlighter: RangeHighlighter, g: Graphics) {
         if (!settings.isEnabled) return
@@ -34,32 +35,38 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         // Reset position if editor changed
         if (lastEditor != editor) {
             lastEditor = editor
-            resetPosition(editor)
+            resetAllPositions(editor)
             setupBlinkTimer()
         }
 
         val g2d = g as Graphics2D
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-        val point = editor.caretModel.visualPosition.let { editor.visualPositionToXY(it) }
-
-        // Reset position if there's a large jump
-        if (abs(point.x - targetX) > 1000 || abs(point.y - targetY) > 1000) {
-            resetPosition(editor)
-        }
+        val allCarets = editor.caretModel.allCarets
 
         ensureTimerStarted(editor)
 
-        targetX = point.x.toDouble()
-        targetY = point.y.toDouble()
+        var anyMoving = false
+        allCarets.forEachIndexed { index, caret ->
+            val point = editor.visualPositionToXY(caret.visualPosition)
+            val caretPos = caretPositions.getOrPut(index) { CaretPosition() }
 
-        g2d.color = editor.colorsScheme.defaultForeground
+            // Reset position if there's a large jump
+            if (abs(point.x - caretPos.targetX) > 1000 || abs(point.y - caretPos.targetY) > 1000) {
+                resetCaretPosition(caretPos, point)
+            }
 
-        val caretHeight = editor.lineHeight - (settings.caretHeightMargins * 2)
+            caretPos.targetX = point.x.toDouble()
+            caretPos.targetY = point.y.toDouble()
 
-        val isMoving = Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01
+            val isMoving =
+                abs(caretPos.targetX - caretPos.currentX) > 0.01 || abs(caretPos.targetY - caretPos.currentY) > 0.01
+            if (isMoving) {
+                anyMoving = true
+            }
+        }
 
-        if (isMoving) {
+        if (anyMoving) {
             lastMoveTime = System.currentTimeMillis()
             isCaretVisible = true
         }
@@ -67,37 +74,47 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         val timeSinceLastMove = System.currentTimeMillis() - lastMoveTime
         val shouldBlink = timeSinceLastMove > resumeBlinkDelay
 
-        // Only draw if we have valid positions
-        if (currentX.isFinite() && currentY.isFinite() && (!shouldBlink || isCaretVisible || !settings.isBlinking)) {
-            when (settings.caretStyle) {
-                SmoothCaretSettings.CaretStyle.BLOCK -> {
-                    g2d.fillRect(
-                        currentX.toInt(),
-                        currentY.toInt() + settings.caretHeightMargins,
-                        settings.caretWidth,
-                        caretHeight
-                    )
-                }
+        g2d.color = editor.colorsScheme.defaultForeground
+        val caretHeight = editor.lineHeight - (settings.caretHeightMargins * 2)
 
-                SmoothCaretSettings.CaretStyle.LINE -> {
-                    g2d.fillRect(
-                        currentX.toInt(),
-                        currentY.toInt() + settings.caretHeightMargins,
-                        settings.caretWidth,
-                        caretHeight
-                    )
-                }
+        allCarets.forEachIndexed { index, _ ->
+            val caretPos = caretPositions[index] ?: return@forEachIndexed
 
-                SmoothCaretSettings.CaretStyle.UNDERSCORE -> {
-                    g2d.fillRect(
-                        currentX.toInt(),
-                        currentY.toInt() + caretHeight - 2,
-                        settings.caretWidth * 2,
-                        2
-                    )
+            // Only draw if we have valid positions
+            if (caretPos.currentX.isFinite() && caretPos.currentY.isFinite() && (!shouldBlink || isCaretVisible || !settings.isBlinking)) {
+                when (settings.caretStyle) {
+                    SmoothCaretSettings.CaretStyle.BLOCK -> {
+                        g2d.fillRect(
+                            caretPos.currentX.toInt(),
+                            caretPos.currentY.toInt() + settings.caretHeightMargins,
+                            settings.caretWidth,
+                            caretHeight
+                        )
+                    }
+
+                    SmoothCaretSettings.CaretStyle.LINE -> {
+                        g2d.fillRect(
+                            caretPos.currentX.toInt(),
+                            caretPos.currentY.toInt() + settings.caretHeightMargins,
+                            settings.caretWidth,
+                            caretHeight
+                        )
+                    }
+
+                    SmoothCaretSettings.CaretStyle.UNDERSCORE -> {
+                        g2d.fillRect(
+                            caretPos.currentX.toInt(),
+                            caretPos.currentY.toInt() + caretHeight - 2,
+                            settings.caretWidth * 2,
+                            2
+                        )
+                    }
                 }
             }
         }
+
+        val currentCaretCount = allCarets.size
+        caretPositions.keys.retainAll { it < currentCaretCount }
     }
 
     private fun setupBlinkTimer() {
@@ -114,13 +131,27 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         blinkTimer?.start()
     }
 
-    private fun resetPosition(editor: Editor) {
-        val point = editor.caretModel.visualPosition.let { editor.visualPositionToXY(it) }
-        currentX = point.x.toDouble()
-        currentY = point.y.toDouble()
-        targetX = currentX
-        targetY = currentY
+    private fun resetAllPositions(editor: Editor) {
+        caretPositions.clear()
+        val allCarets = editor.caretModel.allCarets
+        allCarets.forEachIndexed { index, caret ->
+            val point = editor.visualPositionToXY(caret.visualPosition)
+            val caretPos = CaretPosition(
+                currentX = point.x.toDouble(),
+                currentY = point.y.toDouble(),
+                targetX = point.x.toDouble(),
+                targetY = point.y.toDouble()
+            )
+            caretPositions[index] = caretPos
+        }
         isCaretVisible = true
+    }
+
+    private fun resetCaretPosition(caretPos: CaretPosition, point: java.awt.Point) {
+        caretPos.currentX = point.x.toDouble()
+        caretPos.currentY = point.y.toDouble()
+        caretPos.targetX = caretPos.currentX
+        caretPos.targetY = caretPos.currentY
     }
 
     private fun getScreenRefreshRate(): Int {
@@ -155,32 +186,41 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
 
             timer = Timer(delay) {
                 if (!editor.isDisposed) {
-                    val dx = targetX - currentX
-                    val dy = targetY - currentY
+                    var needsRepaint = false
 
-                    if (settings.adaptiveSpeed) {
-                        val charWidth =
-                            editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
+                    caretPositions.values.forEach { caretPos ->
+                        val dx = caretPos.targetX - caretPos.currentX
+                        val dy = caretPos.targetY - caretPos.currentY
 
-                        // Adaptive speed based on distance to avoid falling behind
-                        val speedFactor = when {
-                            abs(dx) > charWidth * 2 -> settings.maxCatchupSpeed
-                            abs(dx) > charWidth -> settings.catchupSpeed
-                            else -> settings.smoothness
+                        if (settings.adaptiveSpeed) {
+                            val charWidth =
+                                editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
+
+                            // Adaptive speed based on distance to avoid falling behind
+                            val speedFactor = when {
+                                abs(dx) > charWidth * 2 -> settings.maxCatchupSpeed
+                                abs(dx) > charWidth -> settings.catchupSpeed
+                                else -> settings.smoothness
+                            }
+
+                            if (abs(dx) > 0.01 || abs(dy) > 0.01) {
+                                caretPos.currentX += dx * speedFactor
+                                caretPos.currentY += dy * speedFactor
+                                needsRepaint = true
+                            }
+                        } else {
+                            // Simple constant speed animation
+                            if (abs(dx) > 0.01 || abs(dy) > 0.01) {
+                                caretPos.currentX += dx * settings.smoothness
+                                caretPos.currentY += dy * settings.smoothness
+                                needsRepaint = true
+                            }
                         }
-
-                        if (abs(dx) > 0.01 || abs(dy) > 0.01) {
-                            currentX += dx * speedFactor
-                            currentY += dy * speedFactor
-                            editor.contentComponent.repaint()
-                        }
-                    } else {
-                        // Simple constant speed animation
-                        currentX += dx * settings.smoothness
-                        currentY += dy * settings.smoothness
                     }
 
-                    editor.contentComponent.repaint()
+                    if (needsRepaint) {
+                        editor.contentComponent.repaint()
+                    }
                 } else {
                     timer?.stop()
                     timer = null
