@@ -2,11 +2,13 @@ package dev.gorokhov.smoothcaret
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorKind
 import com.intellij.openapi.editor.colors.EditorColors
 import com.intellij.openapi.editor.event.*
 import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.editor.markup.RangeHighlighter
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import java.awt.Color
 
 class SmoothCaretEditorFactoryListener : EditorFactoryListener {
@@ -19,6 +21,8 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
 
     private fun setupSmoothCaret(editor: Editor) {
         if (!settings.isEnabled) return
+
+        if (shouldSkipEditor(editor)) return
 
         editor.settings.apply {
             isBlinkCaret = false
@@ -35,11 +39,7 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
         val markupModel = editor.markupModel
         val docLength = editor.document.textLength
         val highlighter = markupModel.addRangeHighlighter(
-            0,
-            docLength,
-            HighlighterLayer.LAST + 1,
-            null,
-            HighlighterTargetArea.EXACT_RANGE
+            0, docLength, HighlighterLayer.LAST + 1, null, HighlighterTargetArea.EXACT_RANGE
         )
         highlighters[editor] = highlighter
 
@@ -55,18 +55,14 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
         val documentListener = object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 val newLength = editor.document.textLength
-                val markupModel = editor.markupModel
+                val editorMarkupModel = editor.markupModel
 
                 highlighters[editor]?.let { oldHighlighter ->
-                    markupModel.removeHighlighter(oldHighlighter)
+                    editorMarkupModel.removeHighlighter(oldHighlighter)
                 }
 
-                val newHighlighter = markupModel.addRangeHighlighter(
-                    0,
-                    newLength,
-                    HighlighterLayer.LAST + 1,
-                    null,
-                    HighlighterTargetArea.EXACT_RANGE
+                val newHighlighter = editorMarkupModel.addRangeHighlighter(
+                    0, newLength, HighlighterLayer.LAST + 1, null, HighlighterTargetArea.EXACT_RANGE
                 )
 
                 newHighlighter.customRenderer = highlighters[editor]?.customRenderer
@@ -81,6 +77,39 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
         editor.caretModel.addCaretListener(caretListener)
         editor.putUserData(CARET_LISTENER_KEY, caretListener)
         editor.putUserData(DOCUMENT_LISTENER_KEY, documentListener)
+    }
+
+    private fun shouldSkipEditor(editor: Editor): Boolean {
+        val virtualFile = editor.document.let { document ->
+            com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getFile(document)
+        }
+
+        virtualFile?.let { file ->
+            val fileType = file.fileType
+            val fileName = file.name
+            val filePath = file.path
+
+            if (fileType.name.contains("Console", ignoreCase = true) || fileType.name.contains(
+                    "Terminal", ignoreCase = true
+                ) || fileName.contains("Console", ignoreCase = true) || fileName.contains(
+                    "Terminal", ignoreCase = true
+                ) || filePath.contains("console://", ignoreCase = true) || filePath.contains(
+                    "terminal://", ignoreCase = true
+                )
+            ) {
+                return true
+            }
+        }
+
+        try {
+            val editorKind = editor.editorKind
+            if (editorKind == EditorKind.CONSOLE) {
+                return true
+            }
+        } catch (e: Exception) {
+        }
+
+        return false
     }
 
     override fun editorReleased(event: EditorFactoryEvent) {
