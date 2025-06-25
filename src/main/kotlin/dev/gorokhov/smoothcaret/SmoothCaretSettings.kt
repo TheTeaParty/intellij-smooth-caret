@@ -6,8 +6,7 @@ import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
 
 @State(
-    name = "SmoothCaretSettings",
-    storages = [Storage("smooth-caret.xml")]
+    name = "SmoothCaretSettings", storages = [Storage("smooth-caret.xml")]
 )
 class SmoothCaretSettings : PersistentStateComponent<SmoothCaretSettings> {
 

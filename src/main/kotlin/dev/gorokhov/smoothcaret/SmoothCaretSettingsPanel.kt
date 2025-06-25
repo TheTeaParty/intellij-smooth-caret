@@ -1,5 +1,7 @@
 package dev.gorokhov.smoothcaret
 
+import com.intellij.ui.JBColor
+import com.intellij.util.ui.JBUI
 import java.awt.*
 import javax.swing.*
 import javax.swing.border.TitledBorder
@@ -28,10 +30,11 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
 
         var y = 0
 
-        addComponent(createDescriptionPanel(
-            "Smooth Caret Settings",
-            "Configure the behavior and appearance of the smooth caret animation."
-        ), y++)
+        addComponent(
+            createDescriptionPanel(
+                "Smooth Caret Settings", "Configure the behavior and appearance of the smooth caret animation."
+            ), y++
+        )
 
         addComponent(createGroupPanel("Basic Settings") {
             add(blinkingCheckbox)
@@ -40,30 +43,36 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
 
         // Animation settings
         addComponent(createGroupPanel("Animation Settings") {
-            add(createLabeledSlider(
-                "Animation smoothness",
-                "Controls how smooth the caret movement is (lower = smoother)",
-                5, 30,
-                (settings.smoothness * 100).toInt()
-            ) { settings.smoothness = it / 100f })
+            add(
+                createLabeledSlider(
+                    "Animation smoothness",
+                    "Controls how smooth the caret movement is (lower = smoother)",
+                    5,
+                    30,
+                    (settings.smoothness * 100).toInt()
+                ) { settings.smoothness = it / 100f })
 
             add(Box.createVerticalStrut(10))
 
-            add(createLabeledSlider(
-                "Catch-up speed",
-                "How quickly the caret catches up during normal typing",
-                30, 80,
-                (settings.catchupSpeed * 100).toInt()
-            ) { settings.catchupSpeed = it / 100f })
+            add(
+                createLabeledSlider(
+                    "Catch-up speed",
+                    "How quickly the caret catches up during normal typing",
+                    30,
+                    80,
+                    (settings.catchupSpeed * 100).toInt()
+                ) { settings.catchupSpeed = it / 100f })
 
             add(Box.createVerticalStrut(10))
 
-            add(createLabeledSlider(
-                "Max catch-up speed",
-                "Maximum speed for catching up during fast typing",
-                50, 100,
-                (settings.maxCatchupSpeed * 100).toInt()
-            ) { settings.maxCatchupSpeed = it / 100f })
+            add(
+                createLabeledSlider(
+                    "Max catch-up speed",
+                    "Maximum speed for catching up during fast typing",
+                    50,
+                    100,
+                    (settings.maxCatchupSpeed * 100).toInt()
+                ) { settings.maxCatchupSpeed = it / 100f })
 
             add(Box.createVerticalStrut(10))
 
@@ -112,10 +121,12 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
                         slider.value = (settings.smoothness * 100).toInt()
                         label.text = "${slider.value}%"
                     }
+
                     "Catch-up speed" -> {
                         slider.value = (settings.catchupSpeed * 100).toInt()
                         label.text = "${slider.value}%"
                     }
+
                     "Max catch-up speed" -> {
                         slider.value = (settings.maxCatchupSpeed * 100).toInt()
                         label.text = "${slider.value}%"
@@ -141,24 +152,15 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
         return JPanel(GridLayout(0, 1, 0, 5)).apply {
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(
-                    BorderFactory.createLineBorder(Color.LIGHT_GRAY),
-                    title,
-                    TitledBorder.LEFT,
-                    TitledBorder.TOP
-                ),
-                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                    BorderFactory.createLineBorder(JBColor.LIGHT_GRAY), title, TitledBorder.LEFT, TitledBorder.TOP
+                ), BorderFactory.createEmptyBorder(10, 10, 10, 10)
             )
             init()
         }
     }
 
     private fun createLabeledSlider(
-        label: String,
-        tooltip: String,
-        min: Int,
-        max: Int,
-        initial: Int,
-        onChange: (Int) -> Unit
+        label: String, tooltip: String, min: Int, max: Int, initial: Int, onChange: (Int) -> Unit
     ): JPanel {
         return JPanel(GridBagLayout()).apply {
             val valueLabel = JLabel("$initial%")
@@ -192,7 +194,7 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
             add(valueLabel, GridBagConstraints().apply {
                 gridx = 1
                 gridy = 1
-                insets = Insets(0, 5, 0, 0)
+                insets = JBUI.insetsLeft(5)
             })
         }
     }
@@ -204,7 +206,7 @@ class SmoothCaretSettingsPanel(private val settings: SmoothCaretSettings) {
             gridy = y
             fill = GridBagConstraints.HORIZONTAL
             weightx = 1.0
-            insets = Insets(0, 0, 5, 0)
+            insets = JBUI.insetsBottom(5)
         })
     }
 
