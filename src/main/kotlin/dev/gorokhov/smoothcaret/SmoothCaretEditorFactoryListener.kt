@@ -47,28 +47,36 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
 
         val caretListener = object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
-                editor.contentComponent.repaint()
+                if (settings.isEnabled && editor.contentComponent.isShowing) {
+                    editor.contentComponent.repaint()
+                }
             }
         }
 
         val documentListener = object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 val newLength = editor.document.textLength
-                val editorMarkupModel = editor.markupModel
+                val currentHighlighter = highlighters[editor]
 
-                highlighters[editor]?.let { oldHighlighter ->
-                    editorMarkupModel.removeHighlighter(oldHighlighter)
+                if (currentHighlighter != null && newLength > 0) {
+                    val startOffset = currentHighlighter.startOffset
+                    val endOffset = currentHighlighter.endOffset
+
+                    if (startOffset == 0 && endOffset != newLength) {
+                        try {
+                            currentHighlighter.gutterIconRenderer = null
+                            val editorMarkupModel = editor.markupModel
+                            editorMarkupModel.removeHighlighter(currentHighlighter)
+
+                            val newHighlighter = editorMarkupModel.addRangeHighlighter(
+                                0, newLength, HighlighterLayer.LAST + 1, null, HighlighterTargetArea.EXACT_RANGE
+                            )
+                            newHighlighter.customRenderer = currentHighlighter.customRenderer
+                            highlighters[editor] = newHighlighter
+                        } catch (e: Exception) {
+                        }
+                    }
                 }
-
-                val newHighlighter = editorMarkupModel.addRangeHighlighter(
-                    0, newLength, HighlighterLayer.LAST + 1, null, HighlighterTargetArea.EXACT_RANGE
-                )
-
-                newHighlighter.customRenderer = highlighters[editor]?.customRenderer
-
-                highlighters[editor] = newHighlighter
-
-                editor.contentComponent.repaint()
             }
         }
 

@@ -22,6 +22,9 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     private var lastMoveTime = System.currentTimeMillis()
     private val resumeBlinkDelay = 100
     private var blinkTimer: Timer? = null
+    private var cachedCharWidth: Int = 0
+    private var cachedEditor: Editor? = null
+    private val staticBlinkValue = BlinkValue(1.0f, 1.0f)
 
     private data class CaretPosition(
         var currentX: Double = 0.0, var currentY: Double = 0.0, var targetX: Double = 0.0, var targetY: Double = 0.0
@@ -49,7 +52,9 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         ensureTimerStarted(editor)
         ensureBlinkTimerStarted(editor)
 
+        val currentTime = System.currentTimeMillis()
         var anyMoving = false
+
         allCarets.forEachIndexed { index, caret ->
             val point = editor.visualPositionToXY(caret.visualPosition)
             val caretPos = caretPositions.getOrPut(index) { CaretPosition() }
@@ -69,16 +74,15 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         }
 
         if (anyMoving) {
-            lastMoveTime = System.currentTimeMillis()
-            blinkStartTime = System.currentTimeMillis()
+            lastMoveTime = currentTime
+            blinkStartTime = currentTime
         }
 
-        val timeSinceLastMove = System.currentTimeMillis() - lastMoveTime
+        val timeSinceLastMove = currentTime - lastMoveTime
         val shouldBlink = timeSinceLastMove > resumeBlinkDelay
 
         val blinkValue = if (settings.blinkingStyle != SmoothCaretSettings.BlinkingStyle.SOLID) {
             if (shouldBlink) {
-                val currentTime = System.currentTimeMillis()
                 val elapsedSinceBlinkStart = currentTime - blinkStartTime - resumeBlinkDelay
                 val timeInCycle = if (elapsedSinceBlinkStart >= 0) {
                     (elapsedSinceBlinkStart % settings.blinkInterval.toLong()).toFloat() / settings.blinkInterval.toFloat()
@@ -87,24 +91,27 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 }
                 calculateBlinkValue(timeInCycle)
             } else {
-                BlinkValue(1.0f, 1.0f)
+                staticBlinkValue
             }
         } else {
-            BlinkValue(1.0f, 1.0f)
+            staticBlinkValue
         }
+
+        if (blinkValue.opacity <= 0.01f) return
 
         g2d.color = editor.colorsScheme.defaultForeground
         val caretHeight = editor.lineHeight - (settings.caretHeightMargins * 2)
 
+        val originalComposite = if (blinkValue.opacity < 1.0f) {
+            val current = g2d.composite
+            g2d.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, blinkValue.opacity)
+            current
+        } else null
+
         allCarets.forEachIndexed { index, _ ->
             val caretPos = caretPositions[index] ?: return@forEachIndexed
 
-            if (caretPos.currentX.isFinite() && caretPos.currentY.isFinite() && blinkValue.opacity > 0.01f) {
-                val originalComposite = g2d.composite
-                if (blinkValue.opacity < 1.0f) {
-                    g2d.composite =
-                        java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, blinkValue.opacity)
-                }
+            if (caretPos.currentX.isFinite() && caretPos.currentY.isFinite()) {
                 val caretX = caretPos.currentX.toInt()
                 val caretY = caretPos.currentY.toInt()
                 val scaledHeight = (caretHeight * blinkValue.scaleY).toInt()
@@ -137,10 +144,10 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                         )
                     }
                 }
-
-                g2d.composite = originalComposite
             }
         }
+
+        originalComposite?.let { g2d.composite = it }
 
         val currentCaretCount = allCarets.size
         caretPositions.keys.retainAll { it < currentCaretCount }
@@ -149,24 +156,20 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     private fun calculateBlinkValue(timeInCycle: Float): BlinkValue {
         return when (settings.blinkingStyle) {
             SmoothCaretSettings.BlinkingStyle.BLINK -> {
-                when {
-                    timeInCycle < 0.49f -> BlinkValue(1.0f, 1.0f)
-                    timeInCycle < 0.51f -> BlinkValue(1.0f, 1.0f)
-                    else -> BlinkValue(0.0f, 1.0f)
-                }
+                if (timeInCycle < 0.5f) BlinkValue(1.0f, 1.0f) else BlinkValue(0.0f, 1.0f)
             }
 
             SmoothCaretSettings.BlinkingStyle.SMOOTH -> {
                 when {
                     timeInCycle < 0.3f -> BlinkValue(1.0f, 1.0f)
                     timeInCycle < 0.7f -> {
-                        val fadeProgress = (timeInCycle - 0.3f) / 0.4f
+                        val fadeProgress = (timeInCycle - 0.3f) * 2.5f
                         val opacity = 1.0f - fadeProgress
                         BlinkValue(opacity, 1.0f)
                     }
 
                     else -> {
-                        val fadeProgress = (timeInCycle - 0.7f) / 0.3f
+                        val fadeProgress = (timeInCycle - 0.7f) * 3.333f
                         val opacity = fadeProgress
                         BlinkValue(opacity, 1.0f)
                     }
@@ -177,8 +180,9 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 when {
                     timeInCycle < 0.15f -> BlinkValue(1.0f, 1.0f)
                     timeInCycle < 0.85f -> {
-                        val progress = (timeInCycle - 0.15f) / 0.7f
-                        val opacity = 1.0f - sin(progress * Math.PI).toFloat() * 0.8f
+                        val progress = (timeInCycle - 0.15f) * 1.4286f
+                        val sinValue = sin(progress * Math.PI).toFloat()
+                        val opacity = 1.0f - sinValue * 0.8f
                         BlinkValue(opacity, 1.0f)
                     }
 
@@ -190,8 +194,9 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 when {
                     timeInCycle < 0.2f -> BlinkValue(1.0f, 1.0f)
                     timeInCycle < 0.8f -> {
-                        val progress = (timeInCycle - 0.2f) / 0.6f
-                        val scale = 1.0f - sin(progress * Math.PI).toFloat() * 0.5f
+                        val progress = (timeInCycle - 0.2f) * 1.6667f
+                        val sinValue = sin(progress * Math.PI).toFloat()
+                        val scale = 1.0f - sinValue * 0.5f
                         BlinkValue(1.0f, scale)
                     }
 
@@ -282,31 +287,30 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 if (!editor.isDisposed) {
                     var needsRepaint = false
 
+                    if (settings.adaptiveSpeed && (cachedEditor != editor || cachedCharWidth == 0)) {
+                        cachedCharWidth =
+                            editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
+                        cachedEditor = editor
+                    }
+
                     caretPositions.values.forEach { caretPos ->
                         val dx = caretPos.targetX - caretPos.currentX
                         val dy = caretPos.targetY - caretPos.currentY
 
-                        if (settings.adaptiveSpeed) {
-                            val charWidth =
-                                editor.component.getFontMetrics(editor.colorsScheme.getFont(null)).charWidth('m')
-
-                            val speedFactor = when {
-                                abs(dx) > charWidth * 2 -> settings.maxCatchupSpeed
-                                abs(dx) > charWidth -> settings.catchupSpeed
-                                else -> settings.smoothness
+                        if (abs(dx) > 0.01 || abs(dy) > 0.01) {
+                            val speedFactor = if (settings.adaptiveSpeed) {
+                                when {
+                                    abs(dx) > cachedCharWidth * 2 -> settings.maxCatchupSpeed
+                                    abs(dx) > cachedCharWidth -> settings.catchupSpeed
+                                    else -> settings.smoothness
+                                }
+                            } else {
+                                settings.smoothness
                             }
 
-                            if (abs(dx) > 0.01 || abs(dy) > 0.01) {
-                                caretPos.currentX += dx * speedFactor
-                                caretPos.currentY += dy * speedFactor
-                                needsRepaint = true
-                            }
-                        } else {
-                            if (abs(dx) > 0.01 || abs(dy) > 0.01) {
-                                caretPos.currentX += dx * settings.smoothness
-                                caretPos.currentY += dy * settings.smoothness
-                                needsRepaint = true
-                            }
+                            caretPos.currentX += dx * speedFactor
+                            caretPos.currentY += dy * speedFactor
+                            needsRepaint = true
                         }
                     }
 
