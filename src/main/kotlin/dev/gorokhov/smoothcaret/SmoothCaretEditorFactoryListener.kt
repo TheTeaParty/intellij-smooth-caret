@@ -87,36 +87,7 @@ class SmoothCaretEditorFactoryListener : EditorFactoryListener {
     }
 
     private fun shouldSkipEditor(editor: Editor): Boolean {
-        val virtualFile = editor.document.let { document ->
-            com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getFile(document)
-        }
-
-        virtualFile?.let { file ->
-            val fileType = file.fileType
-            val fileName = file.name
-            val filePath = file.path
-
-            if (fileType.name.contains("Console", ignoreCase = true) || fileType.name.contains(
-                    "Terminal", ignoreCase = true
-                ) || fileName.contains("Console", ignoreCase = true) || fileName.contains(
-                    "Terminal", ignoreCase = true
-                ) || filePath.contains("console://", ignoreCase = true) || filePath.contains(
-                    "terminal://", ignoreCase = true
-                )
-            ) {
-                return true
-            }
-        }
-
-        try {
-            val editorKind = editor.editorKind
-            if (editorKind == EditorKind.CONSOLE) {
-                return true
-            }
-        } catch (e: Exception) {
-        }
-
-        return false
+        return editor.editorKind != EditorKind.MAIN_EDITOR;
     }
 
     override fun editorReleased(event: EditorFactoryEvent) {
