@@ -1,5 +1,6 @@
 package dev.gorokhov.smoothcaret
 
+import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.CustomHighlighterRenderer
 import com.intellij.openapi.editor.markup.RangeHighlighter
@@ -12,7 +13,7 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHighlighterRenderer {
-    private val caretPositions = mutableMapOf<Int, CaretPosition>()
+    private val caretPositions = mutableMapOf<Caret, CaretPosition>()
     private var timer: Timer? = null
     private var lastEditor: Editor? = null
 
@@ -55,9 +56,16 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
         val currentTime = System.currentTimeMillis()
         var anyMoving = false
 
-        allCarets.forEachIndexed { index, caret ->
+        allCarets.forEach { caret ->
             val point = editor.visualPositionToXY(caret.visualPosition)
-            val caretPos = caretPositions.getOrPut(index) { CaretPosition() }
+            val caretPos = caretPositions.getOrPut(caret) {
+                CaretPosition(
+                    currentX = point.x.toDouble(),
+                    currentY = point.y.toDouble(),
+                    targetX = point.x.toDouble(),
+                    targetY = point.y.toDouble()
+                )
+            }
 
             if (abs(point.x - caretPos.targetX) > 1000 || abs(point.y - caretPos.targetY) > 1000) {
                 resetCaretPosition(caretPos, point)
@@ -108,8 +116,8 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
             current
         } else null
 
-        allCarets.forEachIndexed { index, _ ->
-            val caretPos = caretPositions[index] ?: return@forEachIndexed
+        allCarets.forEach { caret ->
+            val caretPos = caretPositions[caret] ?: return@forEach
 
             if (caretPos.currentX.isFinite() && caretPos.currentY.isFinite()) {
                 val caretX = caretPos.currentX.toInt()
@@ -149,8 +157,8 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
 
         originalComposite?.let { g2d.composite = it }
 
-        val currentCaretCount = allCarets.size
-        caretPositions.keys.retainAll { it < currentCaretCount }
+        // Clean up positions for carets that no longer exist
+        caretPositions.keys.retainAll { caret -> allCarets.contains(caret) }
     }
 
     private fun calculateBlinkValue(timeInCycle: Float): BlinkValue {
@@ -235,7 +243,7 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
     private fun resetAllPositions(editor: Editor) {
         caretPositions.clear()
         val allCarets = editor.caretModel.allCarets
-        allCarets.forEachIndexed { index, caret ->
+        allCarets.forEach { caret ->
             val point = editor.visualPositionToXY(caret.visualPosition)
             val caretPos = CaretPosition(
                 currentX = point.x.toDouble(),
@@ -243,7 +251,7 @@ class SmoothCaretRenderer(private val settings: SmoothCaretSettings) : CustomHig
                 targetX = point.x.toDouble(),
                 targetY = point.y.toDouble()
             )
-            caretPositions[index] = caretPos
+            caretPositions[caret] = caretPos
         }
         blinkStartTime = System.currentTimeMillis()
     }
