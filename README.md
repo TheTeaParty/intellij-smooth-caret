@@ -1,10 +1,10 @@
 # Smooth caret Intellij plugin
 
-# Updates
-
 Thanks to TheTeaParty for open sourcing，Thanks to amuazm for updating the project to be compatible with the latest IntelliJ 2025.2 version.
 
+# Updates
 
+This update adds the ability to directly download executable files(.zip) for importing and using plugins.
 
 VSCode-like smooth caret plugin for Intellij IDEA
 
