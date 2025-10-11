@@ -1,4 +1,11 @@
 # Smooth caret Intellij plugin
+
+# Updates
+
+Thanks to TheTeaParty for open sourcing，Thanks to amuazm for updating the project to be compatible with the latest IntelliJ 2025.2 version.
+
+
+
 VSCode-like smooth caret plugin for Intellij IDEA
 
 ![Smooth Caret Demo](https://github.com/TheTeaParty/intellij-smooth-caret/blob/main/images/example.gif?raw=true)
